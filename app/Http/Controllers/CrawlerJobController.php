@@ -18,8 +18,8 @@ class CrawlerJobController extends Controller
      */
     public function initCrawler( Request $request )
     {
-        Log::info($request->input('url'), ['Init Crawler URL']);
         $url = $request->input('url');
+
         if ( !$url ) {
             return ['success' => false];
         }
@@ -36,6 +36,7 @@ class CrawlerJobController extends Controller
         $crawlerJob->end_time = microtime(true);
 
         if ( !str_contains($crawlerJob->response_code, '200 OK') ) {
+
             $crawlerJob->status = 0;
             $crawlerJob->save();
             
@@ -61,29 +62,36 @@ class CrawlerJobController extends Controller
         $internalLinks = $firstPage->getInternalLinks();
         $internalLinksCount = count($internalLinks);
 
-        for ($i=0; $i < 6; $i++) { 
+        for ($i=0; $i < 6; $i++) {
+
             if ( $i > $internalLinksCount ) break;
-            $url = rtrim($internalLinks[$i], '/');
-            if ( !in_array( $url, $crawledUrls) ) {
+
+            $page = new Webpage();
+            $page->crawler_id = $crawlerJob->id;
+            $page->url = rtrim($internalLinks[$i], '/');
+            $page->level = 1;
+
+            if ( !in_array( $page->url, $crawledUrls) ) {
+
                 $context = stream_context_create(['http' => ['ignore_errors' => true]]);
                 $startTime = microtime(true);
-                $content = file_get_contents($url, false, $context);
+                $page->content = file_get_contents($url, false, $context);
+                $page->response_code = $http_response_header[0];
+
+                if ( !str_contains($page->response_code, '200 OK') ) {
+
+                    $endTime = microtime(true);
+                    $page->loads = $endTime - $startTime;
+                    $page->save();
+                    continue;
+                }
+                
                 $endTime = microtime(true);
-                $response_code = $http_response_header[0];
-                $loads = $endTime - $startTime;
-                $level = 1;
+                $page->loads = $endTime - $startTime;
                 $crawledUrls[] = $url;
 
-                $page = Webpage::create([
-                    'crawler_id' => $crawlerJob->id,
-                    'url' => $internalLinks[$i],
-                    'content' => $content,
-                    'loads' => $loads,
-                    'level' => $level,
-                    'response_code' => $response_code
-                ]);
+                $page->save();
             }
-
 
         }
 
@@ -98,7 +106,6 @@ class CrawlerJobController extends Controller
      */
     public function showResult( Request $request, $id )
     {
-        Log::info($id, ['Id of crawljob']);
 
         $crawler = CrawlerJob::find($id);
         $uniqueExternalLinks = 0;
@@ -110,16 +117,19 @@ class CrawlerJobController extends Controller
         $pagesCrawled = [];
 
         foreach ($crawler->webpages as $webpage) {
+
             if ( $webpage->level === 0 ) { // entry page
                 $uniqueExternalLinks =  count($webpage->getExternalLinks());
                 $uniqueInternalLinks = count($webpage->getInternalLinks());
                 $uniqueImages = count($webpage->uniqueImages());
             }
+
             $pagesCrawled[$webpage->url] = $webpage->response_code;
             $pageLoad[] = $webpage->loads;
             $wordCount[] = $webpage->totalWordCount();
             $titleCount[] = strlen($webpage->getTitle());
         }
+        
         $data = [
             'totalPagesCrawled' => $crawler->webpagesCount(),
             'uniqueExternalLinks' => $uniqueExternalLinks,
@@ -130,8 +140,6 @@ class CrawlerJobController extends Controller
             'uniqueImages' => $uniqueImages,
             'pagesCrawled' => $pagesCrawled
         ];
-
-        Log::info($data, ['Results Data']);
 
         return view('results', $data);
 
