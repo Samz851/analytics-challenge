@@ -1,7 +1,7 @@
 <?php
 
 use Illuminate\Support\Str;
-
+$DATABASE_URL = parse_url('mysql://bd701b0f1b9e0b:b5decb2a@us-cdbr-east-05.cleardb.net/heroku_ec46931e116f45a?reconnect=true');
 return [
 
     /*
@@ -45,7 +45,7 @@ return [
 
         'mysql' => [
             'driver' => 'mysql',
-            'url' => env('DATABASE_URL'),
+            'url' => 'mysql://bd701b0f1b9e0b:b5decb2a@us-cdbr-east-05.cleardb.net/heroku_ec46931e116f45a?reconnect=true',
             'host' => env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '3306'),
             'database' => env('DB_DATABASE', 'forge'),
